@@ -6,15 +6,22 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://linkthinking.cn">
-  <title>Archives: 2019/8 | linkthinking</title>
+  <title>Linux lib 之 xarray | linkthinking</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="linkthinking">
-<meta property="og:url" content="http://linkthinking.cn/archives/2019/08/index.html">
+  <meta name="description" content="xarray 是 Matthew Wilcox 在 2018 年合入到 Linux 内核中的。并且在当年度的技术论坛中作为最主要的议题进行了讲述，全部的 patch 总共分了99个提交。而在内核的 Document 里对于 xarray 的说明是，它是对内核中原本存在的数据结构 radix tree 的一个全新的封装。在网上搜索 radix tree 所得到的数据结构描述其实跟内核里的不一样，wi">
+<meta name="keywords" content="Linux">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux lib 之 xarray">
+<meta property="og:url" content="http://linkthinking.cn/2021/04/16/Linux-lib-之-xarray/index.html">
 <meta property="og:site_name" content="linkthinking">
+<meta property="og:description" content="xarray 是 Matthew Wilcox 在 2018 年合入到 Linux 内核中的。并且在当年度的技术论坛中作为最主要的议题进行了讲述，全部的 patch 总共分了99个提交。而在内核的 Document 里对于 xarray 的说明是，它是对内核中原本存在的数据结构 radix tree 的一个全新的封装。在网上搜索 radix tree 所得到的数据结构描述其实跟内核里的不一样，wi">
 <meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://linkthinking.cn/images/9c5f294e411e42d9b6623d2b6f35cd53.jpg">
+<meta property="og:updated_time" content="2021-04-16T12:32:08.969Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="linkthinking">
+<meta name="twitter:title" content="Linux lib 之 xarray">
+<meta name="twitter:description" content="xarray 是 Matthew Wilcox 在 2018 年合入到 Linux 内核中的。并且在当年度的技术论坛中作为最主要的议题进行了讲述，全部的 patch 总共分了99个提交。而在内核的 Document 里对于 xarray 的说明是，它是对内核中原本存在的数据结构 radix tree 的一个全新的封装。在网上搜索 radix tree 所得到的数据结构描述其实跟内核里的不一样，wi">
+<meta name="twitter:image" content="https://linkthinking.cn/images/9c5f294e411e42d9b6623d2b6f35cd53.jpg">
   
     <link rel="alternative" href="/atom.xml" title="linkthinking" type="application/atom+xml">
   
@@ -152,61 +159,202 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-  
+            <article id="post-Linux-lib-之-xarray" class="article article-type-post " itemscope itemprop="blogPost">
+  <div class="article-inner">
     
-    
-      
-      
-      <section class="archives-wrap">
-        <div class="archive-year-wrap">
-          <a href="/archives/2019" class="archive-year">2019</a>
-        </div>
-        <div class="archives">
-    
-    <article class="archive-article archive-type-post">
-  <div class="archive-article-inner">
-    <header class="archive-article-header">
-      	<div class="article-meta">
-	      	<a href="/2019/08/04/三十而立/" class="archive-article-date">
-  	<time datetime="2019-08-04T08:07:03.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-08-04</time>
-</a>
-        </div>
-    	 
+      <header class="article-header">
+        
   
-    <h1 itemprop="name">
-      <a class="archive-article-title" href="/2019/08/04/三十而立/">三十而立</a>
+    <h1 class="article-title" itemprop="name">
+      Linux lib 之 xarray
     </h1>
   
 
-        <div class="article-info info-on-right">
-          
+        
+        <a href="/2021/04/16/Linux-lib-之-xarray/" class="archive-article-date">
+  	<time datetime="2021-04-16T12:22:43.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2021-04-16</time>
+</a>
+        
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p><code>xarray</code> 是 Matthew Wilcox 在 2018 年合入到 Linux 内核中的。并且在当年度的技术论坛中作为最主要的议题进行了讲述，全部的 patch 总共分了99个提交。而在内核的 Document 里对于 xarray 的说明是，它是对内核中原本存在的数据结构 radix tree 的一个全新的封装。在网上搜索 radix tree 所得到的数据结构描述其实跟内核里的不一样，wiki 里对它的描述是一种前缀树的结构，而内核里对它的实现其实是一种查询表的概念。<a id="more"></a></p>
+<pre><code class="c">/*
+ * @count is the count of every non-NULL element in the -&gt;slots array
+ * whether that is a value entry, a retry entry, a user pointer,
+ * a sibling entry or a pointer to the next level of the tree.
+ * @nr_values is the count of every element in -&gt;slots which is
+ * either a value entry or a sibling of a value entry.
+ */
+struct xa_node {
+    unsigned char    shift;        /* Bits remaining in each slot */
+    unsigned char    offset;        /* Slot offset in parent */
+    unsigned char    count;        /* Total entry count */
+    unsigned char    nr_values;    /* Value entry count */
+    struct xa_node __rcu *parent;    /* NULL at top of tree */
+    struct xarray    *array;        /* The array we belong to */
+    union {
+        struct list_head private_list;    /* For tree user */
+        struct rcu_head    rcu_head;    /* Used when freeing node */
+    };
+    void __rcu    *slots[XA_CHUNK_SIZE];
+    union {
+        unsigned long    tags[XA_MAX_MARKS][XA_MARK_LONGS];
+        unsigned long    marks[XA_MAX_MARKS][XA_MARK_LONGS];
+    };
+};
+</code></pre>
+<p>xarray 数据结构主要的应用场景是在文件缓存。我们知道在Linux内核中，为了加快文件的访问速度，将空闲的内存页就用做了磁盘的 cache。一个文件的缓存通过 address_space 数据结构进行管理，而这里面用于记录文件数据与内存页之间映射关系的数据结构就是采用了 xarray。当每次需要访问文件的数据时，都需要先查找这个缓存表，所以它的最重要的需求就是查找速度要快。如果把文件的偏移看作是虚拟地址，那么这个表其实做的事情就是——虚拟地址-&gt;内存页 的映射。这不就是虚拟内存的页表所做的事情吗！所以其实 xarray 就是类似于内存的页表结构，二者的区别就是 xarray 的 “地址” 范围是可变的，而页表的地址范围是固定的（CPU的寻址位宽决定）。</p>
+<p>xarray 作为一个树形结构，每个树中的节点（也就是 xa_node ）包含着 XA_CHUNK_SIZE（默认为64） 个 slot。每个 slot 可以存放一个指针，也可以存放一个整数，指针是我们真正要用的，而整数则用做内部特殊用途。叶子结点中的 slot 指向实际实际的数据（在文件缓存中就是存放文件数据的内存页框指针），中间结点中的 slot 则指向下一级表，类似于页表的页目录。正如前面所说的，它类似于虚拟内存的页表，xarray 的查找 key 是一个类似于地址的 index，存储的主体则是指针。下面以一个 node 包含 4 个 slot 的 xarray 为例，绘制 xarray 的结构图：</p>
+<p><img src="https://linkthinking.cn/images/9c5f294e411e42d9b6623d2b6f35cd53.jpg" alt="xarray.jpg"></p>
+<p>上面简单的示意图，描述了 xarray 的 3次插入过程，随着插入的 index 增大，树的深度也一级一级的增长。显而易见，树的深度越小，树的查找速度就越快。按照内核默认的每个结点 64 个 slot，那么只需要一个深度为7的树，就可以覆盖 4T 的地址（也就可以索引4T大小的文件缓存）。</p>
+<p>由于 xarray 中的数据都是指针，在内核中对于指针的数据同步用 RCU 这种无锁的方法是再合适不过了。xarray 相对于之前的 radix tree 除了在名字上让它更加“名副其实”外，还将 RCU 的各种同步做了很好的封装，使得对它的使用变得非常清晰而简单：</p>
+<ul>
+<li>创建——xa_init()</li>
+<li>插入——xa_store()</li>
+<li>查找——xa_load()</li>
+<li>删除——xa_erase()</li>
+<li>销毁——xa_destroy()</li>
+</ul>
+<p>相信在接下来的内核代码中会越来越多的看到它的身影。</p>
+
+      
+
+      
+        <div class="page-reward">
+          <a href="javascript:;" class="page-reward-btn tooltip-top">
+            <div class="tooltip tooltip-east">
+            <span class="tooltip-item">
+              赏
+            </span>
+            <span class="tooltip-content">
+              <span class="tooltip-text">
+                <span class="tooltip-inner">
+                  <p class="reward-p"><i class="icon icon-quo-left"></i>多谢老铁<i class="icon icon-quo-right"></i></p>
+                  <div class="reward-box">
+                    
+                    
+                    <div class="reward-box-item">
+                      <img class="reward-img" src="https://linkthinking.cn/images/weixin_reward.png">
+                      <span class="reward-type">微信</span>
+                    </div>
+                    
+                  </div>
+                </span>
+              </span>
+            </span>
+          </div>
+          </a>
+        </div>
+      
+    </div>
+    <div class="article-info article-info-index">
+      
+      
 	<div class="article-tag tagcloud">
 		<i class="icon-price-tags icon"></i>
 		<ul class="article-tag-list">
 			 
         		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color3">想法</a>
+        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color1">Linux</a>
         		</li>
       		
 		</ul>
 	</div>
 
 
-          
+      
 
+      
+
+      
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="weixin://scanqrcode" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
         </div>
-        <div class="clearfix"></div>
-    </header>
+      </div>
+    </span>
+  </div>
+</div>
+
+      
+      <div class="clearfix"></div>
+    </div>
   </div>
 </article>
+
+  
+<nav id="article-nav">
   
   
-    </div></section>
+    <a href="/2020/11/01/ARM-的-MTE/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">ARM 的 MTE</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
+
+<aside class="wrap-side-operation">
+    <div class="mod-side-operation">
+        
+        <div class="jump-container" id="js-jump-container" style="display:none;">
+            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
+                <i class="icon-font icon-back"></i>
+            </a>
+            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
+                <i class="icon-font icon-plane jump-plane"></i>
+            </div>
+        </div>
+        
+        
+    </div>
+</aside>
+
+
+
+  
+  
   
 
-    
+  
+
+  
+
+  
 
 
           </div>
@@ -233,8 +381,8 @@
 	var yiliaConfig = {
 		mathjax: true,
 		isHome: false,
-		isPost: false,
-		isArchive: true,
+		isPost: true,
+		isArchive: false,
 		isTag: false,
 		isCategory: false,
 		open_in_new: false,
